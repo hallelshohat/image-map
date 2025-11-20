@@ -37,9 +37,9 @@ export function useTiles({ viewport, layer, baseWidth, baseHeight, maxLayer, gl,
     for (let row = startRow; row <= endRow; row += 1) {
       for (let col = startCol; col <= endCol; col += 1) {
         const x0 = Math.floor(col * tileWidth)
-          const x1 = col === tilesPerAxisX - 1 ? baseWidth : Math.floor((col + 1) * tileWidth)
-          const y0 = Math.floor(row * tileHeight)
-          const y1 = row === tilesPerAxisY - 1 ? baseHeight : Math.floor((row + 1) * tileHeight)
+        const x1 = col === tilesPerAxisX - 1 ? baseWidth : Math.floor((col + 1) * tileWidth)
+        const y0 = Math.floor(row * tileHeight)
+        const y1 = row === tilesPerAxisY - 1 ? baseHeight : Math.floor((row + 1) * tileHeight)
         tiles.push({
           key: `${layer}:${col}:${row}`,
           bounds: { x0, x1, y0, y1 },

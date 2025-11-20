@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react'
+import { styled } from '@mui/material/styles'
 import { Axes } from './Axes'
 import { useAxisTicks } from '../hooks/useAxisTicks'
 import { useContainerSize } from '../hooks/useContainerSize'
@@ -9,7 +10,11 @@ import { createProgram, createTextureFromBitmap, toClipX, toClipY } from '../lib
 import { clamp, layerForViewport } from '../lib/view'
 import type { GLContext, TextureEntry, Viewport } from '../types'
 
-type FetchFn = (bounds: { x0: number; x1: number; y0: number; y1: number }, layer: number) => Promise<ImageBitmap>
+type FetchFn = (
+  bounds: { x0: number; x1: number; y0: number; y1: number },
+  layer: number,
+  signal?: AbortSignal
+) => Promise<ImageBitmap>
 
 type MapViewerProps = {
   baseWidth: number
@@ -315,12 +320,11 @@ export function MapViewer({
   }
 
   return (
-    <div className="map-shell" ref={containerRef}>
+    <Shell ref={containerRef}>
       <Axes xTicks={axisTicks.x} yTicks={axisTicks.y} />
-      <div className="map-canvas-wrapper">
-        <canvas
+      <CanvasWrapper>
+        <Canvas
           ref={canvasRef}
-          className="map-canvas"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
@@ -328,14 +332,71 @@ export function MapViewer({
           onWheel={handleWheel}
           onContextMenu={(event) => event.preventDefault()}
         />
-      </div>
-      <div className="hud">
+      </CanvasWrapper>
+      <Hud>
         <span>
           Viewport: {viewport.width.toFixed(0)} × {viewport.height.toFixed(0)} px
         </span>
         <span>Layer: {currentLayer}</span>
-      </div>
-      {status && <div className="status">{status}</div>}
-    </div>
+      </Hud>
+      {status && <Status>{status}</Status>}
+    </Shell>
   )
 }
+
+const Shell = styled('div')({
+  position: 'relative',
+  borderRadius: 18,
+  border: '1px solid rgba(148, 163, 184, 0.4)',
+  background: 'rgba(15, 23, 42, 0.65)',
+  boxShadow: '0 25px 50px rgba(0, 0, 0, 0.45)',
+  overflow: 'visible',
+  minHeight: 360,
+  touchAction: 'none',
+  display: 'grid',
+  gridTemplateRows: 'auto 1fr auto',
+  gridTemplateColumns: 'auto 1fr',
+})
+
+const CanvasWrapper = styled('div')({
+  display: 'block',
+  width: '100%',
+  height: '100%',
+  gridArea: '2 / 2 / 3 / 3',
+  position: 'relative',
+  overflow: 'hidden',
+  borderRadius: 14,
+})
+
+const Canvas = styled('canvas')({
+  display: 'block',
+  width: '100%',
+  height: '100%',
+  cursor: 'grab',
+  '&:active': { cursor: 'grabbing' },
+})
+
+const Hud = styled('div')({
+  position: 'absolute',
+  top: 16,
+  left: 16,
+  display: 'flex',
+  gap: '0.75rem',
+  background: 'rgba(15, 23, 42, 0.85)',
+  padding: '0.5rem 0.85rem',
+  borderRadius: 999,
+  fontSize: '0.85rem',
+  color: '#f8fafc',
+})
+
+const Status = styled('div')({
+  position: 'absolute',
+  inset: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: '1rem',
+  color: '#cbd5f5',
+  pointerEvents: 'none',
+  background: 'linear-gradient(180deg, rgba(2, 6, 23, 0.5), rgba(2, 6, 23, 0.8))',
+})
