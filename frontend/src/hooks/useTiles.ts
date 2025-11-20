@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BASE_HEIGHT, BASE_WIDTH } from '../lib/constants'
 import { tileGridForLayer } from '../lib/view'
 import type { GLContext, TileDescriptor, TileCacheEntry } from '../types'
-import { createTextureFromBitmap, fetchBitmap } from '../lib/gl'
+import { createTextureFromBitmap } from '../lib/gl'
 
 type UseTilesArgs = {
   viewport: { x: number; y: number; width: number; height: number }
   layer: number
+  baseWidth: number
+  baseHeight: number
+  maxLayer: number
   gl: GLContext | null
+  fetchTile: (bounds: { x0: number; x1: number; y0: number; y1: number }, layer: number, signal?: AbortSignal) => Promise<ImageBitmap>
 }
 
-export function useTiles({ viewport, layer, gl }: UseTilesArgs) {
+export function useTiles({ viewport, layer, baseWidth, baseHeight, maxLayer, gl, fetchTile }: UseTilesArgs) {
   // GPU-resident tiles keyed by layer/col/row.
   const tileCache = useRef<Map<string, TileCacheEntry>>(new Map())
   // Track in-flight fetches with abort support so stale requests can be cancelled.
@@ -19,19 +22,24 @@ export function useTiles({ viewport, layer, gl }: UseTilesArgs) {
 
   const activeTiles = useMemo(() => {
     // Compute the minimal set of tiles covering the viewport plus a 1-tile gutter.
-    const { tileWidth, tileHeight, tilesPerAxis } = tileGridForLayer(layer)
+    const { tileWidth, tileHeight, tilesPerAxisX, tilesPerAxisY } = tileGridForLayer(
+      layer,
+      baseWidth,
+      baseHeight,
+      maxLayer
+    )
     const tiles: TileDescriptor[] = []
     const startCol = Math.max(Math.floor(viewport.x / tileWidth) - 1, 0)
-    const endCol = Math.min(Math.floor((viewport.x + viewport.width) / tileWidth) + 1, tilesPerAxis - 1)
+    const endCol = Math.min(Math.floor((viewport.x + viewport.width) / tileWidth) + 1, tilesPerAxisX - 1)
     const startRow = Math.max(Math.floor(viewport.y / tileHeight) - 1, 0)
-    const endRow = Math.min(Math.floor((viewport.y + viewport.height) / tileHeight) + 1, tilesPerAxis - 1)
+    const endRow = Math.min(Math.floor((viewport.y + viewport.height) / tileHeight) + 1, tilesPerAxisY - 1)
 
     for (let row = startRow; row <= endRow; row += 1) {
       for (let col = startCol; col <= endCol; col += 1) {
         const x0 = Math.floor(col * tileWidth)
-        const x1 = col === tilesPerAxis - 1 ? BASE_WIDTH : Math.floor((col + 1) * tileWidth)
-        const y0 = Math.floor(row * tileHeight)
-        const y1 = row === tilesPerAxis - 1 ? BASE_HEIGHT : Math.floor((row + 1) * tileHeight)
+          const x1 = col === tilesPerAxisX - 1 ? baseWidth : Math.floor((col + 1) * tileWidth)
+          const y0 = Math.floor(row * tileHeight)
+          const y1 = row === tilesPerAxisY - 1 ? baseHeight : Math.floor((row + 1) * tileHeight)
         tiles.push({
           key: `${layer}:${col}:${row}`,
           bounds: { x0, x1, y0, y1 },
@@ -39,7 +47,7 @@ export function useTiles({ viewport, layer, gl }: UseTilesArgs) {
       }
     }
     return tiles
-  }, [layer, viewport])
+  }, [layer, viewport, baseWidth, baseHeight, maxLayer])
 
   const requestTile = useCallback(
     (tile: TileDescriptor, tileLayer: number) => {
@@ -55,7 +63,7 @@ export function useTiles({ viewport, layer, gl }: UseTilesArgs) {
       inflight?.controller.abort()
       const controller = new AbortController()
       inFlight.current.set(tile.key, { layer: tileLayer, controller })
-      fetchBitmap(tile.bounds, tileLayer, controller.signal)
+      fetchTile(tile.bounds, tileLayer, controller.signal)
         .then((bitmap) => {
           const nextTexture = createTextureFromBitmap(gl.gl, bitmap)
           const existing = tileCache.current.get(tile.key)
