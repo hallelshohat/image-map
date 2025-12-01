@@ -44,6 +44,7 @@ export function MapViewer({
   const [dirty, setDirty] = useState(0)
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const glRef = useRef<GLContext | null>(null)
   const previewRef = useRef<TextureEntry | null>(null)
   const pointerRef = useRef<{
@@ -147,6 +148,7 @@ export function MapViewer({
   const renderScene = useCallback(() => {
     const ctx = glRef.current
     const canvas = canvasRef.current
+    const overlayCanvas = overlayCanvasRef.current
     if (!ctx || !canvas) return
     const width = Math.max(1, Math.floor(size.width))
     const height = Math.max(1, Math.floor(size.height))
@@ -156,6 +158,12 @@ export function MapViewer({
     }
     canvas.style.width = `${width}px`
     canvas.style.height = `${height}px`
+    if (overlayCanvas) {
+      overlayCanvas.width = width
+      overlayCanvas.height = height
+      overlayCanvas.style.width = `${width}px`
+      overlayCanvas.style.height = `${height}px`
+    }
 
     const { gl, program, buffers, locations } = ctx
     gl.viewport(0, 0, width, height)
@@ -233,6 +241,23 @@ export function MapViewer({
         }
       )
     })
+
+    if (overlayCanvas) {
+      const overlayCtx = overlayCanvas.getContext('2d')
+      if (overlayCtx) {
+        overlayCtx.clearRect(0, 0, width, height)
+        const targetY = 5000
+        const screenY = ((targetY - viewport.y) / viewport.height) * height
+        if (screenY >= 0 && screenY <= height) {
+          overlayCtx.strokeStyle = '#ff2d55'
+          overlayCtx.lineWidth = 3
+          overlayCtx.beginPath()
+          overlayCtx.moveTo(0, screenY)
+          overlayCtx.lineTo(width, screenY)
+          overlayCtx.stroke()
+        }
+      }
+    }
   }, [activeTiles, size, viewport, tileCache, baseWidth, baseHeight])
 
   useEffect(() => {
@@ -332,6 +357,7 @@ export function MapViewer({
           onWheel={handleWheel}
           onContextMenu={(event) => event.preventDefault()}
         />
+        <OverlayCanvas ref={overlayCanvasRef} />
       </CanvasWrapper>
       <Hud>
         <span>
@@ -374,6 +400,12 @@ const Canvas = styled('canvas')({
   height: '100%',
   cursor: 'grab',
   '&:active': { cursor: 'grabbing' },
+})
+
+const OverlayCanvas = styled('canvas')({
+  position: 'absolute',
+  inset: 0,
+  pointerEvents: 'none',
 })
 
 const Hud = styled('div')({
